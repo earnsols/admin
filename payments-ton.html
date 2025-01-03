@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payments</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f9f9f9;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #6200ea;
+            color: white;
+            padding: 10px 20px;
+        }
+
+        .back-button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .table-container {
+            margin: 20px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background-color: #6200ea;
+            color: white;
+        }
+
+        .popup {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .popup-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .popup-content h2 {
+            margin-top: 0;
+        }
+
+        .popup-content p {
+            margin: 10px 0;
+        }
+
+        .popup-content input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .popup-content button {
+            margin: 10px 5px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .save-button {
+            background-color: #6200ea;
+            color: white;
+        }
+
+        .cancel-button {
+            background-color: #f44336;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header with back button -->
+    <header>
+        <button class="back-button" onclick="window.location.href='index.html';">← Back</button>
+        <h1>Payments</h1>
+    </header>
+
+    <!-- Payments Table -->
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Order ID</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>TON Address</th>
+                </tr>
+            </thead>
+            <tbody id="payments-list">
+                <!-- Payments data will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Payment Info Popup -->
+    <div id="payment-popup" class="popup">
+        <div class="popup-content">
+            <h2>Payment Information</h2>
+            <p id="popup-order-id"></p>
+            <p id="popup-amount"></p>
+            <p id="popup-ton-address"></p>
+            <label for="popup-status">Update Status:</label>
+            <input type="text" id="popup-status" placeholder="Enter new status">
+            <div>
+                <button class="save-button" onclick="savePaymentStatus()">Save</button>
+                <button class="cancel-button" onclick="closePopup()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDDlGiy8p4Bg1skGy-aOW-bk_FaSEgzrag",
+            authDomain: "earb-bitz.firebaseapp.com",
+            databaseURL: "https://earb-bitz-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "earb-bitz",
+            storageBucket: "earb-bitz.appspot.com",
+            messagingSenderId: "295167569247",
+            appId: "1:295167569247:web:ac3d4ada18f694908b9aea",
+            measurementId: "G-1F9ZKN1BH9"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+
+        const database = firebase.database();
+        const adminUid = "HTKFd9rUljaYFlQwsCrOSoz7aiR2";
+
+        firebase.auth().onAuthStateChanged(user => {
+            if (!user || user.uid !== adminUid) {
+                alert("Access denied");
+                window.location.href = "index.html";
+            } else {
+                fetchPayments();
+            }
+        });
+
+        function fetchPayments() {
+    const paymentsRef = database.ref("payments");
+    paymentsRef.on("value", snapshot => {
+        const payments = snapshot.val();
+        const paymentsList = document.getElementById("payments-list");
+        paymentsList.innerHTML = "";
+
+        for (const userId in payments) {
+            for (const orderId in payments[userId]) {
+                const payment = payments[userId][orderId];
+
+                // Only include payments with a tonAddress field
+                if (payment.tonAddress) {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${orderId}</td>
+                        <td>${payment.amount}</td>
+                        <td>${payment.status || "N/A"}</td>
+                        <td>${payment.tonAddress}</td>
+                    `;
+                    row.onclick = () => openPopup(orderId, payment, userId);
+                    paymentsList.appendChild(row);
+                }
+            }
+        }
+    });
+}
+
+
+        function openPopup(orderId, payment, userId) {
+            document.getElementById("popup-order-id").innerText = `Order ID: ${orderId}`;
+            document.getElementById("popup-amount").innerText = `Amount: ${payment.amount}`;
+            document.getElementById("popup-ton-address").innerText = `TON Address: ${payment.tonAddress}`;
+            document.getElementById("popup-status").value = payment.status || "";
+            document.getElementById("payment-popup").style.display = "flex";
+            document.getElementById("payment-popup").dataset.userId = userId;
+            document.getElementById("payment-popup").dataset.orderId = orderId;
+        }
+
+        function savePaymentStatus() {
+            const userId = document.getElementById("payment-popup").dataset.userId;
+            const orderId = document.getElementById("payment-popup").dataset.orderId;
+            const newStatus = document.getElementById("popup-status").value;
+
+            const statusRef = database.ref(`payments/${userId}/${orderId}/status`);
+            statusRef.set(newStatus)
+                .then(() => {
+                    alert("Status updated successfully");
+                    closePopup();
+                })
+                .catch(error => {
+                    console.error("Error updating status:", error);
+                });
+        }
+
+        function closePopup() {
+            document.getElementById("payment-popup").style.display = "none";
+        }
+    </script>
+</body>
+</html>
